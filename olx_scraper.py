@@ -11,30 +11,26 @@ class OlxSpider(scrapy.Spider):
     MAX_RESULTS_PER_SEARCH = 5000
     MIN_PRICE = 0
     MAX_PRICE = 100000000
-    step = 100000
 
     def __init__(self):
         self.link_queue = Queue()  
 
     def start_requests(self):
-        for link in self.generate_links():
-            self.link_queue.put(link)  
+        link = f'{self.start_url}?pe={self.MIN_PRICE + 1}&ps={self.MAX_PRICE}'
+        self.link_queue.put(link)  
 
-        yield scrapy.Request(self.link_queue.get(), headers=self.custom_headers, callback=self.parse_page)
+        if not self.link_queue.empty():
+            yield scrapy.Request(self.link_queue.get(), headers=self.custom_headers, callback=self.parse_page)
 
     def parse_page(self, response):
-        olx_results_message = response.css('.olx-text.olx-text--body-small.olx-text--block.olx-text--regular.olx-color-neutral-110::text').get().strip()
-        regex_pattern = re.compile(r'de\s(.*?)\sresultados')
-        olx_result_number = regex_pattern.search(olx_results_message)
-
+        olx_result_number = re.search(
+            r'de\s(.*?)\sresultados',
+            response.css('.olx-text.olx-text--body-small.olx-text--block.olx-text--regular.olx-color-neutral-110::text').get().strip()
+        )   
         if olx_result_number:
             unparsed_number_of_results = olx_result_number.group(1)
             number_of_results = unparsed_number_of_results.replace('.', '')
 
-            yield {
-                "url": response.url,
-                "qtd": number_of_results
-            }
             if self.verify_result_size(int(number_of_results)):
                 if int(number_of_results) > 0:
                     data = {
@@ -42,7 +38,7 @@ class OlxSpider(scrapy.Spider):
                         "qtd": number_of_results
                     }
                     self.write_to_csv(data)
-                
+
             else:
                 self.divide_links(response.url)
 
@@ -53,15 +49,6 @@ class OlxSpider(scrapy.Spider):
     def verify_result_size(self, number_of_results):
         return number_of_results <= self.MAX_RESULTS_PER_SEARCH
         
-    def generate_links(self):
-        max_price = self.MAX_PRICE
-        min_price = self.MIN_PRICE
-        step = self.step
-
-        while min_price <= max_price:
-            yield f'{self.start_url}?pe={min_price + 1}&ps={min(min_price + step, max_price)}'
-            min_price += step
-
     def divide_links(self, url):
         min_price = int(re.search(r'pe=(\d+)', url).group(1))
         max_price = int(re.search(r'ps=(\d+)', url).group(1))
@@ -85,5 +72,3 @@ class OlxSpider(scrapy.Spider):
 process = CrawlerProcess()
 process.crawl(OlxSpider)
 process.start()
-
-
