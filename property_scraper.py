@@ -72,23 +72,20 @@ def parse_location(location):
     neighborhood = location.split(", ")[1]
     return neighborhood
 
-def print_information(title, price, neighborhood, data, iptu, condominio, quartos, metros_quadrados, vagas_garagem, banheiros):
-    print(title)
-    print("Property price: " + str(price))
-    print("IPTU: " + str(iptu))
-    print("Condominio: " + str(condominio))
-    print("Quartos: " + str(quartos))
-    print("Metros quadrados: " + str(metros_quadrados))
-    print("Vagas garagem: " + str(vagas_garagem))
-    print("Banheiros: " + str(banheiros))
-    print("Bairro: " + neighborhood)
-    print(data)
-    print("-" * 10)
-    time.sleep(0.5)
-
-def main():
-    driver = initialize_driver()
+def insert_into_database(info, cursor, conn):
+    cursor.execute('''
+    INSERT INTO property_info (
+        title, property_price, neighborhood, data, iptu, condominio, quartos, metros_quadrados, vagas_garagem, banheiros
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', info)
+    conn.commit()
     
+def main():
+    # SQLite database connection
+    conn = sqlite3.connect('property_data.db')
+    cursor = conn.cursor()
+
+    driver = initialize_driver()
 
     url = 'https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao/zona-sul?pe=550000&ps=500001'
     class_name = 'renderIfVisible'
@@ -98,9 +95,11 @@ def main():
     for element in elements:
         driver.execute_script("arguments[0].scrollIntoView(true);", element)
         info = extract_information(element)
-        print_information(*info)
+        insert_into_database(info, cursor, conn)
+        time.sleep(0.5)
 
     driver.quit()
+    conn.close()
 
 if __name__ == "__main__":
     main()
